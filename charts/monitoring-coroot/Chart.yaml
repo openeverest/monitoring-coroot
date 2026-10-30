@@ -1,0 +1,19 @@
+apiVersion: v2
+name: monitoring-coroot
+description: OpenEverest monitoring extension for Coroot. Ships the MonitoringClass and its controller, which annotates database pods for coroot-cluster-agent.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+keywords:
+  - openeverest
+  - monitoring
+  - extension
+  - coroot
+home: https://github.com/openeverest/monitoring-coroot
+sources:
+  - https://github.com/openeverest/monitoring-coroot
+maintainers:
+  - name: OpenEverest Contributors
+annotations:
+  openeverest.io/extension-type: monitoring
+# OpenEverest (controller + CRDs) must be installed before this chart.
