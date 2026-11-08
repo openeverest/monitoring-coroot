@@ -1,0 +1,25 @@
+{{- if .Values.class.create -}}
+apiVersion: monitoring.openeverest.io/v1alpha1
+kind: MonitoringClass
+metadata:
+  name: {{ .Values.class.name }}
+  labels:
+    {{- include "monitoring-coroot.labels" . | nindent 4 }}
+spec:
+  displayName: {{ .Values.class.displayName }}
+  description: Annotates the database pods of every Instance sending to a destination of this class, so coroot-cluster-agent connects to each of them with the Instance's monitor credential.
+  extensionManaged:
+    requires:
+      connection: true
+    podMetadata:
+      annotationPrefixes:
+        - coroot.com/
+  # coroot-cluster-agent is configured with the Coroot URL and API key when
+  # it is installed; a destination carries no credentials.
+  authModes:
+    - name: Anonymous
+  destinationParametersSchema:
+    openAPIV3Schema:
+      type: object
+      additionalProperties: false
+{{- end }}
