@@ -6,11 +6,15 @@ metadata:
   labels:
     {{- include "monitoring-coroot.labels" . | nindent 4 }}
 spec:
+  controllerName: {{ .Values.class.controllerName }}
   displayName: {{ .Values.class.displayName }}
   description: Annotates the database pods of every Instance sending to a destination of this class, so coroot-cluster-agent connects to each of them with the Instance's monitor credential.
   extensionManaged:
     requires:
       connection: true
+      # The databases coroot-cluster-agent connects to (Provider
+      # spec.componentTypes.<type>.kind).
+      kinds: [mongodb, postgresql]
     podMetadata:
       annotationPrefixes:
         - coroot.com/

@@ -20,7 +20,7 @@ them into the pod templates.
 
 ```mermaid
 flowchart LR
-    C["MonitoringClass coroot<br/>requires.connection<br/>podMetadata: coroot.com/"] --> D[MonitoringDestination]
+    C["MonitoringClass coroot<br/>requires.connection, kinds<br/>podMetadata: coroot.com/"] --> D[MonitoringDestination]
     D --> E["Instance<br/>spec.monitoring.destinations[]"]
     E -->|core creates| B[MonitoringBinding]
     P["Provider<br/>connections + monitor Secret"] -->|status.monitoring.sources| X
@@ -29,6 +29,11 @@ flowchart LR
     Pods -->|discovered by| A[coroot-cluster-agent]
 ```
 
+- **Claim.** The class names its controller with `controllerName: openeverest.io/monitoring-coroot`
+  (chart value `class.controllerName`); the controller claims every class whose `controllerName`
+  is its `--controller-name`. `class.name` is only the name destinations reference.
+- **Kinds.** The class requires connections from components whose type has the kind `mongodb` or
+  `postgresql` (`requires.kinds`), the databases coroot-cluster-agent connects to.
 - **Credentials** are the Instance's read-only `monitor` credential Secret; the controller never
   reads Secrets, coroot-cluster-agent does.
 - **TLS** is configured whenever the database accepts it, with the CA the provider publishes, so
@@ -40,8 +45,9 @@ flowchart LR
 
 ## Requirements
 
-- OpenEverest with the connection sources API and a provider declaring
-  `connection: Supported` (e.g. provider-percona-server-mongodb).
+- OpenEverest with the connection sources API and `MonitoringClass.spec.controllerName`, and a
+  provider declaring `connection: Supported` and `podMetadata: Supported` on a component type of
+  kind `mongodb` or `postgresql` (e.g. provider-percona-server-mongodb).
 - Coroot with `coroot-cluster-agent` (e.g. the `coroot-operator` chart and a `Coroot` CR).
 
 ## Usage

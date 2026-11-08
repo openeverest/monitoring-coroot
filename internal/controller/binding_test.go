@@ -97,7 +97,7 @@ func newFakeClient(t *testing.T, objs ...client.Object) client.Client { //nolint
 		WithScheme(s).
 		WithTypeConverters(tc, managedfields.NewDeducedTypeConverter()).
 		WithObjects(objs...).
-		WithStatusSubresource(&corev1alpha1.Instance{}, &monitoringv1alpha1.MonitoringBinding{}, &monitoringv1alpha1.MonitoringDestination{}).
+		WithStatusSubresource(&corev1alpha1.Instance{}, &monitoringv1alpha1.MonitoringClass{}, &monitoringv1alpha1.MonitoringBinding{}, &monitoringv1alpha1.MonitoringDestination{}).
 		Build()
 }
 
@@ -130,6 +130,29 @@ func testBinding(accepted metav1.ConditionStatus, held []monitoringv1alpha1.Comp
 		}}
 	}
 	return b
+}
+
+// testControllerName is the controller name the controller under test
+// claims classes by.
+const testControllerName = "openeverest.io/monitoring-coroot"
+
+func testController(c client.Client) monitoring.ClassController {
+	return monitoring.ClassController{Client: c, FieldOwner: FieldOwner, ControllerName: testControllerName}
+}
+
+// testClass is a class named name whose controllerName is controllerName.
+func testClass(name, controllerName string) *monitoringv1alpha1.MonitoringClass {
+	return &monitoringv1alpha1.MonitoringClass{
+		ObjectMeta: metav1.ObjectMeta{Name: name, Generation: 1},
+		Spec: monitoringv1alpha1.MonitoringClassSpec{
+			ControllerName: controllerName,
+			ExtensionManaged: &monitoringv1alpha1.ExtensionManagedFulfilment{
+				Requires:    monitoringv1alpha1.SourceRequirements{Connection: true, Kinds: []string{"mongodb", "postgresql"}},
+				PodMetadata: &monitoringv1alpha1.PodMetadataPolicy{AnnotationPrefixes: []string{"coroot.com/"}},
+			},
+			AuthModes: []common.AuthMode{{Name: common.AuthModeAnonymous}},
+		},
+	}
 }
 
 func testDestination() *monitoringv1alpha1.MonitoringDestination {
@@ -202,12 +225,8 @@ func TestReconcileBinding(t *testing.T) {
 			ctx := t.Context()
 			held := tt.binding.Status.PodMetadata
 			tt.binding.Status.PodMetadata = nil
-			c := newFakeClient(t, tt.binding, tt.instance, testDestination())
-			r := &bindingReconciler{
-				client:    c,
-				cc:        monitoring.ClassController{Client: c, FieldOwner: FieldOwner, ClassName: "coroot"},
-				className: "coroot",
-			}
+			c := newFakeClient(t, testClass("coroot", testControllerName), tt.binding, tt.instance, testDestination())
+			r := &bindingReconciler{client: c, cc: testController(c)}
 			if held != nil {
 				// What an earlier reconcile requested, under the controller's field owner.
 				b := &monitoringv1alpha1.MonitoringBinding{}

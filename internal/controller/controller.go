@@ -13,8 +13,8 @@
 // limitations under the License.
 
 // Package controller is the Coroot MonitoringClass controller: it claims
-// the class, reports its destinations Ready and requests the coroot.com/*
-// pod annotations of every bound Instance on the binding.
+// the classes naming it, reports their destinations Ready and requests the
+// coroot.com/* pod annotations of every bound Instance on the binding.
 package controller
 
 import (
@@ -39,10 +39,10 @@ import (
 // controller writes.
 const FieldOwner = "openeverest.io/monitoring-coroot"
 
-// Setup registers the class, destination and binding controllers for the
-// MonitoringClass named className.
-func Setup(mgr ctrl.Manager, className string) error {
-	cc := monitoring.ClassController{Client: mgr.GetClient(), FieldOwner: FieldOwner, ClassName: className}
+// Setup registers the class, destination and binding controllers for every
+// MonitoringClass whose controllerName is controllerName.
+func Setup(mgr ctrl.Manager, controllerName string) error {
+	cc := monitoring.ClassController{Client: mgr.GetClient(), FieldOwner: FieldOwner, ControllerName: controllerName}
 
 	if err := ctrl.NewControllerManagedBy(mgr).
 		Named("monitoring-coroot-class").
@@ -57,23 +57,20 @@ func Setup(mgr ctrl.Manager, className string) error {
 		return fmt.Errorf("set up MonitoringClass controller: %w", err)
 	}
 
+	dr := &destinationReconciler{client: mgr.GetClient(), cc: cc}
 	if err := ctrl.NewControllerManagedBy(mgr).
 		Named("monitoring-coroot-destination").
-		For(&monitoringv1alpha1.MonitoringDestination{}, builder.WithPredicates(
-			predicate.GenerationChangedPredicate{},
-			predicate.NewPredicateFuncs(func(obj client.Object) bool {
-				dst, ok := obj.(*monitoringv1alpha1.MonitoringDestination)
-				return ok && dst.Spec.ClassRef.Name == className
-			}),
-		)).
-		Complete(&destinationReconciler{client: mgr.GetClient(), cc: cc}); err != nil {
+		For(&monitoringv1alpha1.MonitoringDestination{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		Watches(&monitoringv1alpha1.MonitoringClass{}, handler.EnqueueRequestsFromMapFunc(dr.destinationsOfClass),
+			builder.WithPredicates(predicate.GenerationChangedPredicate{})).
+		Complete(dr); err != nil {
 		return fmt.Errorf("set up MonitoringDestination controller: %w", err)
 	}
 
-	r := &bindingReconciler{client: mgr.GetClient(), cc: cc, className: className}
+	r := &bindingReconciler{client: mgr.GetClient(), cc: cc}
 	if err := ctrl.NewControllerManagedBy(mgr).
 		Named("monitoring-coroot").
-		For(&monitoringv1alpha1.MonitoringBinding{}, builder.WithPredicates(monitoring.BindingPredicate(className))).
+		For(&monitoringv1alpha1.MonitoringBinding{}, builder.WithPredicates(monitoring.ExtensionManagedBindingPredicate())).
 		Watches(&corev1alpha1.Instance{}, handler.EnqueueRequestsFromMapFunc(r.bindingsForInstance),
 			builder.WithPredicates(sourcesChanged())).
 		Complete(r); err != nil {
@@ -108,8 +105,9 @@ func (r *destinationReconciler) Reconcile(ctx context.Context, req ctrl.Request)
 	if err := r.client.Get(ctx, req.NamespacedName, dst); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	if dst.Spec.ClassRef.Name != r.cc.ClassName {
-		return ctrl.Result{}, nil
+	owned, err := r.cc.OwnsClassNamed(ctx, dst.Spec.ClassRef.Name)
+	if err != nil || !owned {
+		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, r.cc.SetDestinationReady(ctx, dst, monitoringv1alpha1.ReasonReady,
 		"coroot-cluster-agent discovers the annotated database pods", "")
@@ -149,8 +147,34 @@ func (r *bindingReconciler) bindingsForInstance(ctx context.Context, obj client.
 	}
 	var reqs []reconcile.Request
 	for i := range bindings {
-		if r.executes(&bindings[i]) {
+		executes, err := r.executes(ctx, &bindings[i])
+		if err != nil {
+			ctrl.LoggerFrom(ctx).Error(err, "resolving the class of a binding failed", "binding", bindings[i].Name)
+			continue
+		}
+		if executes {
 			reqs = append(reqs, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&bindings[i])})
+		}
+	}
+	return reqs
+}
+
+// destinationsOfClass enqueues the destinations of a class this controller
+// claims, so they are checked once the class appears or changes.
+func (r *destinationReconciler) destinationsOfClass(ctx context.Context, obj client.Object) []reconcile.Request {
+	class, ok := obj.(*monitoringv1alpha1.MonitoringClass)
+	if !ok || !r.cc.OwnsClass(class) {
+		return nil
+	}
+	list := &monitoringv1alpha1.MonitoringDestinationList{}
+	if err := r.client.List(ctx, list); err != nil {
+		ctrl.LoggerFrom(ctx).Error(err, "listing MonitoringDestinations failed", "class", class.Name)
+		return nil
+	}
+	var reqs []reconcile.Request
+	for i := range list.Items {
+		if list.Items[i].Spec.ClassRef.Name == class.Name {
+			reqs = append(reqs, reconcile.Request{NamespacedName: client.ObjectKeyFromObject(&list.Items[i])})
 		}
 	}
 	return reqs
