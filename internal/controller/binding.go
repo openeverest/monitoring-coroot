@@ -25,15 +25,13 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
-	corev1alpha1 "github.com/openeverest/openeverest/v2/api/core/v1alpha1"
 	monitoringv1alpha1 "github.com/openeverest/openeverest/v2/api/monitoring/v1alpha1"
 	"github.com/openeverest/openeverest/v2/provider-runtime/monitoring"
 )
 
 type bindingReconciler struct {
-	client    client.Client
-	cc        monitoring.ClassController
-	className string
+	client client.Client
+	cc     monitoring.ClassController
 }
 
 // Reconcile requests the coroot.com/* annotations for the bound Instance's
@@ -46,8 +44,11 @@ func (r *bindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err := r.client.Get(ctx, req.NamespacedName, b); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	if !b.DeletionTimestamp.IsZero() || !r.executes(b) {
+	if !b.DeletionTimestamp.IsZero() {
 		return ctrl.Result{}, nil
+	}
+	if executes, err := r.executes(ctx, b); err != nil || !executes {
+		return ctrl.Result{}, err
 	}
 	held := b.Status.PodMetadata
 
@@ -83,9 +84,10 @@ func (r *bindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		configuredMessage(podMetadata, notes), podMetadata)
 }
 
-func (r *bindingReconciler) executes(b *monitoringv1alpha1.MonitoringBinding) bool {
-	return b.Spec.ExecutionMode == corev1alpha1.MonitoringExecutionModeExtensionManaged &&
-		b.Spec.ClassRef != nil && b.Spec.ClassRef.Name == r.className
+// executes reports whether this controller is the Configured writer of the
+// binding: an ExtensionManaged binding of a class it claims.
+func (r *bindingReconciler) executes(ctx context.Context, b *monitoringv1alpha1.MonitoringBinding) (bool, error) {
+	return r.cc.OwnsBinding(ctx, b)
 }
 
 func configuredMessage(podMetadata []monitoringv1alpha1.ComponentPodMetadata, notes []string) string {
