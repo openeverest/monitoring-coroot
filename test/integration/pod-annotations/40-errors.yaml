@@ -1,0 +1,4 @@
+apiVersion: monitoring.openeverest.io/v1alpha1
+kind: MonitoringBinding
+metadata:
+  name: coroot-it-coroot-43bf77d3

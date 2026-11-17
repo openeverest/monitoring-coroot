@@ -16,9 +16,14 @@ RELEASE_NAMESPACE ?= openeverest-system
 
 GOLANGCI_LINT_VERSION ?= v2.14.0
 
-# CRDs of the openeverest core version pinned in go.mod.
+# CRDs of the openeverest core version pinned in go.mod, for the integration
+# tests.
 OPENEVEREST_MODULE = github.com/openeverest/openeverest/v2
 OPENEVEREST_CRDS = $$(go list -m -f '{{.Dir}}' $(OPENEVEREST_MODULE))/config/crd/bases
+
+# k3d cluster for the integration tests (dev/k3d_config.yaml).
+K3D_CLUSTER_NAME ?= monitoring-coroot-test
+
 .PHONY: help
 help: ## Display this help.
 	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
@@ -44,6 +49,10 @@ run: ## Run the controller against the current kubeconfig.
 test-unit: ## Run unit tests.
 	go test -race -coverprofile=coverage.out ./...
 
+.PHONY: test-integration
+test-integration: ## Run the chainsaw integration tests against the current cluster.
+	chainsaw test --config ./test/integration/.chainsaw.yaml ./test/integration
+
 ##@ Build
 
 .PHONY: build
@@ -68,7 +77,19 @@ helm-lint: ## Lint the chart.
 helm-template: ## Render the chart.
 	helm template monitoring-coroot $(CHART_DIR) -n $(RELEASE_NAMESPACE)
 
-##@ Cluster
+##@ Integration test cluster
+
+.PHONY: k3d-cluster-up
+k3d-cluster-up: ## Create the k3d cluster for the integration tests.
+	k3d cluster create $(K3D_CLUSTER_NAME) --config ./dev/k3d_config.yaml
+
+.PHONY: k3d-cluster-down
+k3d-cluster-down: ## Delete the k3d cluster.
+	k3d cluster delete $(K3D_CLUSTER_NAME)
+
+.PHONY: load-image
+load-image: ## Import the controller image (IMG) into the k3d cluster.
+	k3d image import $(IMG) -c $(K3D_CLUSTER_NAME)
 
 .PHONY: install-crds
 install-crds: ## Install the OpenEverest CRDs the controller needs.
@@ -77,7 +98,7 @@ install-crds: ## Install the OpenEverest CRDs the controller needs.
 	kubectl wait --for=condition=Established --timeout=60s -f $(OPENEVEREST_CRDS)
 
 .PHONY: deploy-ci
-deploy-ci: ## Install the chart with a locally available image (IMG).
+deploy-ci: ## Install the chart with the image imported into k3d (IMG).
 	kubectl create namespace $(RELEASE_NAMESPACE) --dry-run=client -o yaml | kubectl apply -f -
 	kubectl label --overwrite namespace $(RELEASE_NAMESPACE) pod-security.kubernetes.io/enforce=restricted
 	helm upgrade --install monitoring-coroot $(CHART_DIR) \

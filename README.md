@@ -1,9 +1,5 @@
 # monitoring-coroot
 
-> [!WARNING]
-> **Draft.** Depends on the unmerged monitoring connection sources API
-> (openeverest/openeverest#3501); `go.mod` replaces core with a local checkout.
-
 Send the databases of [OpenEverest](https://github.com/openeverest/openeverest) Instances to
 [Coroot](https://coroot.com).
 
@@ -43,18 +39,64 @@ flowchart LR
 - The destination has no parameters: coroot-cluster-agent is configured with the Coroot server
   and API key when it is installed.
 
+> [!IMPORTANT]
+> **This extension is not standalone.** It requires an OpenEverest installation (core CRDs and
+> controller), a provider that publishes connection endpoints, and Coroot with
+> `coroot-cluster-agent` in the cluster. It does not install any of them.
+
+## Compatibility
+
+| monitoring-coroot | OpenEverest | Coroot |
+|---|---|---|
+| `0.1.x` | `2.0.0-dev.5` | `coroot-cluster-agent` with `coroot.com/<db>-scrape` annotation discovery |
+
 ## Requirements
 
-- OpenEverest with the connection sources API and `MonitoringClass.spec.controllerName`, and a
-  provider declaring `connection: Supported` and `podMetadata: Supported` on a component type of
-  kind `mongodb` or `postgresql` (e.g. provider-percona-server-mongodb).
+- OpenEverest (see [Compatibility](#compatibility)) and a provider declaring
+  `connection: Supported` and `podMetadata: Supported` on a component type of kind `mongodb` or
+  `postgresql`. provider-percona-server-mongodb adds this in
+  [openeverest/provider-percona-server-mongodb#149](https://github.com/openeverest/provider-percona-server-mongodb/pull/149);
+  until a provider ships it, bindings stay `EndpointNotServing`.
 - Coroot with `coroot-cluster-agent` (e.g. the `coroot-operator` chart and a `Coroot` CR).
 
-## Usage
+## Installation
+
+The chart is published as an OCI artifact to GitHub Container Registry:
 
 ```bash
-helm install monitoring-coroot charts/monitoring-coroot -n openeverest-system
+helm install monitoring-coroot \
+  oci://ghcr.io/openeverest/charts/monitoring-coroot \
+  -n openeverest-system
 ```
+
+Check that the class is claimed:
+
+```bash
+kubectl get monitoringclass coroot
+```
+
+Upgrade and uninstall:
+
+```bash
+helm upgrade monitoring-coroot \
+  oci://ghcr.io/openeverest/charts/monitoring-coroot -n openeverest-system
+helm uninstall monitoring-coroot -n openeverest-system
+```
+
+| Chart value | Default | Purpose |
+|---|---|---|
+| `class.create` | `true` | Install the `MonitoringClass` |
+| `class.name` | `coroot` | Name of the class that destinations reference |
+| `class.controllerName` | `openeverest.io/monitoring-coroot` | `controllerName` of the class and the controller's `--controller-name`; the controller claims and serves every class that names it |
+| `class.displayName` | `Coroot` | Name shown in the UI |
+| `image.repository` | `ghcr.io/openeverest/monitoring-coroot` | Controller image |
+| `image.tag` | chart `appVersion` | Controller image tag |
+| `leaderElection.enabled` | `true` | Required for `replicaCount` above 1 |
+| `logLevel` | `info` | `debug`, `info` or `error` |
+
+All values are in [values.yaml](charts/monitoring-coroot/values.yaml).
+
+## Usage
 
 ```yaml
 apiVersion: monitoring.openeverest.io/v1alpha1
@@ -95,6 +137,47 @@ kubectl get pods -l core.openeverest.io/instance=<instance> -o jsonpath='{.items
 | `make lint` | golangci-lint |
 | `make run` | Run the controller against the current kubeconfig |
 | `make helm-lint` | Lint the chart |
+
+### Integration tests
+
+The chainsaw suite under [test/integration/](test/integration/) runs in a k3d cluster that holds
+only the OpenEverest CRDs of the core version [go.mod](go.mod) pins. No OpenEverest controller,
+provider or Coroot runs; the test publishes an Instance's connection endpoints and creates and
+accepts the Instance-owned binding itself, then asserts the requested `status.podMetadata`, the
+binding and destination conditions, and that the request is held while the Instance publishes
+no connections. The controller runs in a namespace that enforces the restricted Pod Security
+Standard.
+
+```bash
+make k3d-cluster-up
+make docker-build load-image IMG=monitoring-coroot:dev
+make install-crds
+make deploy-ci IMG=monitoring-coroot:dev
+make test-integration
+make k3d-cluster-down
+```
+
+CI ([.github/workflows/ci.yaml](.github/workflows/ci.yaml)) runs lint, build, unit tests,
+module tidiness, copyright headers, Helm lint and the integration suite on every pull request.
+
+### Releasing
+
+Pushing a `vX.Y.Z` (or `vX.Y.Z-<suffix>`) tag builds the multi-arch image
+`ghcr.io/openeverest/monitoring-coroot:X.Y.Z`, then publishes the chart with that version to
+`oci://ghcr.io/openeverest/charts` and creates the GitHub release. The release fails unless the
+[Compatibility](#compatibility) table has a row for the tag's minor series. Every push to `main`
+publishes `ghcr.io/openeverest/monitoring-coroot-dev`.
+
+## Contributing
+
+Issues and pull requests are welcome. Commits must be signed off (`git commit -s`). See the
+[OpenEverest Code of Conduct](https://github.com/openeverest/openeverest/blob/main/CODE_OF_CONDUCT.md).
+
+## Security
+
+Report vulnerabilities per the
+[OpenEverest security policy](https://github.com/openeverest/openeverest/blob/main/SECURITY.md).
+Please do not open public issues for security reports.
 
 ## License
 

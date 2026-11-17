@@ -1,0 +1,25 @@
+# The binding core materialises for the Instance's "coroot" entry.
+# __INSTANCE_UID__ is replaced with the Instance's UID.
+apiVersion: monitoring.openeverest.io/v1alpha1
+kind: MonitoringBinding
+metadata:
+  name: coroot-it-coroot-43bf77d3
+  labels:
+    core.openeverest.io/instance: coroot-it
+    monitoring.openeverest.io/entry: coroot
+    monitoring.openeverest.io/destination: coroot-it
+    monitoring.openeverest.io/class: coroot
+  ownerReferences:
+    - apiVersion: core.openeverest.io/v1alpha1
+      kind: Instance
+      name: coroot-it
+      uid: __INSTANCE_UID__
+      controller: true
+spec:
+  instanceRef:
+    name: coroot-it
+  destinationRef:
+    name: coroot-it
+  classRef:
+    name: coroot
+  executionMode: ExtensionManaged

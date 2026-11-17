@@ -1,0 +1,92 @@
+---
+apiVersion: chainsaw.kyverno.io/v1alpha1
+kind: Test
+metadata:
+  name: pod-annotations
+spec:
+  description: |
+    The controller claims the coroot class, reports its destinations Ready
+    and, for an Accepted ExtensionManaged binding, requests the coroot.com/*
+    annotations for every connection endpoint the Instance publishes in the
+    binding's status.podMetadata. The request is held while the Instance
+    publishes no connections. Only CRDs are installed: the test publishes the
+    Instance's monitoring sources the way provider-runtime would and creates
+    the Instance-owned binding and accepts it the way core would.
+  catch:
+    - script:
+        content: kubectl -n $NAMESPACE get instance,monitoringdestination,monitoringbinding -o yaml
+    - script:
+        content: kubectl get monitoringclass,provider -o yaml
+    - podLogs:
+        namespace: openeverest-system
+        selector: app.kubernetes.io/name=monitoring-coroot
+        tail: 100
+  steps:
+    - name: class-claimed
+      try:
+        - assert:
+            file: 00-assert.yaml
+
+    # Stand in for provider-runtime: a mongod endpoint verified with a CA and
+    # a postgres endpoint with unverified TLS, both behind the "monitor"
+    # credential profile.
+    - name: instance-publishes-sources
+      try:
+        - apply:
+            file: 10-install.yaml
+        - script:
+            content: |
+              kubectl -n $NAMESPACE patch instance/coroot-it --subresource status --type merge --patch "$(cat <<EOF
+              {"status": {"monitoring": {"sources": {
+                "identity": {"clusterId": "it", "labels": {
+                  "openeverest_instance": "coroot-it", "openeverest_namespace": "$NAMESPACE",
+                  "openeverest_provider": "coroot-it", "k8s_cluster_id": "it"}},
+                "credentials": [{"profile": "monitor", "secretRef": {"name": "coroot-it-monitoring-monitor"}}],
+                "connections": [
+                  {"component": "engine", "kind": "mongodb", "container": "mongod", "port": 27017,
+                   "podSelector": {"core.openeverest.io/instance": "coroot-it", "core.openeverest.io/component": "engine"},
+                   "tls": {"ca": {"secretKeyRef": {"name": "coroot-it-tls", "key": "ca.crt"}}},
+                   "auth": {"credentialProfile": "monitor"}},
+                  {"component": "pg", "kind": "postgresql", "container": "postgres", "port": 5432,
+                   "podSelector": {"core.openeverest.io/instance": "coroot-it", "core.openeverest.io/component": "pg"},
+                   "tls": {"required": true},
+                   "auth": {"credentialProfile": "monitor"}}
+                ]}}}}
+              EOF
+              )"
+
+    - name: binding-accepted
+      try:
+        # Stand in for core's binding controller: the Instance owns the
+        # binding, which is how Instance changes reach it.
+        - script:
+            content: |
+              INSTANCE_UID=$(kubectl -n $NAMESPACE get instance/coroot-it -o jsonpath='{.metadata.uid}')
+              sed "s/__INSTANCE_UID__/$INSTANCE_UID/" 20-binding.yaml | kubectl -n $NAMESPACE apply -f -
+        - script:
+            content: |
+              GENERATION=$(kubectl -n $NAMESPACE get monitoringbinding/coroot-it-coroot-43bf77d3 -o jsonpath='{.metadata.generation}')
+              kubectl -n $NAMESPACE patch monitoringbinding/coroot-it-coroot-43bf77d3 --subresource status --type merge \
+                -p '{"status":{"conditions":[{"type":"Accepted","status":"True","reason":"Accepted","message":"accepted by the test","observedGeneration":'"$GENERATION"',"lastTransitionTime":"2026-01-01T00:00:00Z"}]}}'
+        - assert:
+            file: 20-assert.yaml
+
+    - name: connections-withdrawn
+      try:
+        # Reaches the binding through the Instance watch.
+        - script:
+            content: |
+              kubectl -n $NAMESPACE patch instance/coroot-it --subresource status --type json \
+                -p '[{"op": "remove", "path": "/status/monitoring/sources/connections"}]'
+        - assert:
+            file: 30-assert.yaml
+
+    - name: binding-removed
+      try:
+        - delete:
+            ref:
+              apiVersion: monitoring.openeverest.io/v1alpha1
+              kind: MonitoringBinding
+              name: coroot-it-coroot-43bf77d3
+        - error:
+            file: 40-errors.yaml
