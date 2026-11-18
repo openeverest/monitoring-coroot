@@ -53,7 +53,7 @@ flowchart LR
 ## Usage
 
 ```bash
-helm install monitoring-coroot charts/monitoring-coroot -n openeverest-system
+helm install monitoring-coroot charts/monitoring-coroot -n everest-system
 ```
 
 ```yaml
