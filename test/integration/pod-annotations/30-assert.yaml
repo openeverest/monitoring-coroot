@@ -1,0 +1,11 @@
+# The request is held while the Instance publishes no connections, so the
+# provider does not roll the pods back and forth (e.g. during a restart).
+apiVersion: monitoring.openeverest.io/v1alpha1
+kind: MonitoringBinding
+metadata:
+  name: coroot-it-coroot-43bf77d3
+status:
+  (conditions[?type == 'Configured'] | [0].status): "False"
+  (conditions[?type == 'Configured'] | [0].reason): EndpointNotServing
+  (conditions[?type == 'Configured'] | [0].message): Instance coroot-it publishes no connection endpoints yet
+  (length(podMetadata)): 2

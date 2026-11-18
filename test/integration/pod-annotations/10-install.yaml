@@ -1,0 +1,39 @@
+apiVersion: core.openeverest.io/v1alpha1
+kind: Provider
+metadata:
+  name: coroot-it
+spec:
+  componentTypes:
+    mongod:
+      kind: mongodb
+    postgres:
+      kind: postgresql
+  monitoring:
+    componentTypes:
+      mongod:
+        connection: Supported
+        podMetadata: Supported
+      postgres:
+        connection: Supported
+        podMetadata: Supported
+---
+apiVersion: core.openeverest.io/v1alpha1
+kind: Instance
+metadata:
+  name: coroot-it
+spec:
+  providerRef:
+    name: coroot-it
+  monitoring:
+    destinations:
+      - name: coroot
+        destinationRef:
+          name: coroot-it
+---
+apiVersion: monitoring.openeverest.io/v1alpha1
+kind: MonitoringDestination
+metadata:
+  name: coroot-it
+spec:
+  classRef:
+    name: coroot

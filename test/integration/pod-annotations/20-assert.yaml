@@ -1,0 +1,37 @@
+apiVersion: monitoring.openeverest.io/v1alpha1
+kind: MonitoringDestination
+metadata:
+  name: coroot-it
+status:
+  (conditions[?type == 'Ready'] | [0].status): "True"
+  (conditions[?type == 'Ready'] | [0].reason): Ready
+  (conditions[?type == 'Ready'] | [0].message): coroot-cluster-agent discovers the annotated database pods
+---
+apiVersion: monitoring.openeverest.io/v1alpha1
+kind: MonitoringBinding
+metadata:
+  name: coroot-it-coroot-43bf77d3
+status:
+  (conditions[?type == 'Accepted'] | [0].status): "True"
+  (conditions[?type == 'Configured'] | [0].status): "True"
+  (conditions[?type == 'Configured'] | [0].reason): Configured
+  (conditions[?type == 'Configured'] | [0].message): coroot.com annotations requested for engine, pg; the provider renders them on the pods
+  (length(podMetadata)): 2
+  # A verified TLS endpoint with the monitor credential.
+  (podMetadata[?component == 'engine'] | [0].annotations):
+    coroot.com/mongodb-scrape: "true"
+    coroot.com/mongodb-scrape-port: "27017"
+    coroot.com/mongodb-scrape-credentials-secret-name: coroot-it-monitoring-monitor
+    coroot.com/mongodb-scrape-credentials-secret-username-key: username
+    coroot.com/mongodb-scrape-credentials-secret-password-key: password
+    coroot.com/mongodb-scrape-param-tls: "true"
+    coroot.com/mongodb-scrape-tls-secret-name: coroot-it-tls
+    coroot.com/mongodb-scrape-tls-secret-ca-key: ca.crt
+  # TLS without a CA is encrypted but not verified.
+  (podMetadata[?component == 'pg'] | [0].annotations):
+    coroot.com/postgres-scrape: "true"
+    coroot.com/postgres-scrape-port: "5432"
+    coroot.com/postgres-scrape-credentials-secret-name: coroot-it-monitoring-monitor
+    coroot.com/postgres-scrape-credentials-secret-username-key: username
+    coroot.com/postgres-scrape-credentials-secret-password-key: password
+    coroot.com/postgres-scrape-param-sslmode: require
