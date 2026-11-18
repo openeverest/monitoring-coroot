@@ -66,7 +66,7 @@ The chart is published as an OCI artifact to GitHub Container Registry:
 ```bash
 helm install monitoring-coroot \
   oci://ghcr.io/openeverest/charts/monitoring-coroot \
-  -n openeverest-system
+  -n everest-system
 ```
 
 Check that the class is claimed:
@@ -79,8 +79,8 @@ Upgrade and uninstall:
 
 ```bash
 helm upgrade monitoring-coroot \
-  oci://ghcr.io/openeverest/charts/monitoring-coroot -n openeverest-system
-helm uninstall monitoring-coroot -n openeverest-system
+  oci://ghcr.io/openeverest/charts/monitoring-coroot -n everest-system
+helm uninstall monitoring-coroot -n everest-system
 ```
 
 | Chart value | Default | Purpose |

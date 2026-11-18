@@ -96,7 +96,7 @@ jobs:
           \`\`\`bash
           helm install monitoring-coroot \\
             oci://${REGISTRY}/${{ github.repository_owner }}/charts/monitoring-coroot \\
-            --version ${VERSION} -n openeverest-system
+            --version ${VERSION} -n everest-system
           \`\`\`
           EOF
 
