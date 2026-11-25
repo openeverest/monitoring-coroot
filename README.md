@@ -50,6 +50,10 @@ flowchart LR
 |---|---|---|
 | `0.1.x` | `2.0.0-dev.5` | `coroot-cluster-agent` with `coroot.com/<db>-scrape` annotation discovery |
 
+The chart and its `MonitoringClass` carry the annotation `openeverest.io/contract-version`, the
+contract version of the OpenEverest the controller is built against. It names the oldest
+OpenEverest the build works with.
+
 ## Requirements
 
 - OpenEverest (see [Compatibility](#compatibility)) and a provider declaring
@@ -93,6 +97,7 @@ helm uninstall monitoring-coroot -n everest-system
 | `image.tag` | chart `appVersion` | Controller image tag |
 | `leaderElection.enabled` | `true` | Required for `replicaCount` above 1 |
 | `logLevel` | `info` | `debug`, `info` or `error` |
+| `compatibility.acknowledge.coreVersion` | `""` | OpenEverest release on which to run this build although it does not support it, such as `2.0.0` |
 
 All values are in [values.yaml](charts/monitoring-coroot/values.yaml).
 
@@ -137,6 +142,8 @@ kubectl get pods -l core.openeverest.io/instance=<instance> -o jsonpath='{.items
 | `make lint` | golangci-lint |
 | `make run` | Run the controller against the current kubeconfig |
 | `make helm-lint` | Lint the chart |
+| `make generate` | Stamp the chart with the OpenEverest contract version of the core in `go.mod` |
+| `make verify` | Fail when `make generate` changes anything or the `MonitoringClass` does not carry the stamp |
 
 ### Integration tests
 
