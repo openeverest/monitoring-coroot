@@ -41,6 +41,7 @@ import (
 	common "github.com/openeverest/openeverest/v2/api/common/v1alpha1"
 	corev1alpha1 "github.com/openeverest/openeverest/v2/api/core/v1alpha1"
 	monitoringv1alpha1 "github.com/openeverest/openeverest/v2/api/monitoring/v1alpha1"
+	contractmonitoring "github.com/openeverest/openeverest/v2/contract/monitoring"
 	"github.com/openeverest/openeverest/v2/provider-runtime/monitoring"
 )
 
@@ -113,7 +114,7 @@ func testBinding(accepted metav1.ConditionStatus, held []monitoringv1alpha1.Comp
 	b := &monitoringv1alpha1.MonitoringBinding{
 		ObjectMeta: metav1.ObjectMeta{
 			Name: "orders-coroot-1a2b3c4d", Namespace: testNamespace, Generation: 1,
-			Labels: monitoring.BindingLabels("orders", "coroot", "coroot", "coroot"),
+			Labels: contractmonitoring.BindingLabels("orders", "coroot", "coroot", "coroot"),
 		},
 		Spec: monitoringv1alpha1.MonitoringBindingSpec{
 			InstanceRef:    common.ObjectRef{Name: "orders"},

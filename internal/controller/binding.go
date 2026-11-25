@@ -26,6 +26,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 
 	monitoringv1alpha1 "github.com/openeverest/openeverest/v2/api/monitoring/v1alpha1"
+	contractmonitoring "github.com/openeverest/openeverest/v2/contract/monitoring"
 	"github.com/openeverest/openeverest/v2/provider-runtime/monitoring"
 )
 
@@ -52,7 +53,7 @@ func (r *bindingReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	}
 	held := b.Status.PodMetadata
 
-	if !monitoring.IsAccepted(b) {
+	if !contractmonitoring.IsAccepted(b) {
 		accepted := meta.FindStatusCondition(b.Status.Conditions, monitoringv1alpha1.MonitoringBindingConditionAccepted)
 		if accepted != nil && accepted.ObservedGeneration == b.Generation && accepted.Status == metav1.ConditionFalse {
 			return ctrl.Result{}, r.cc.SetConfiguredWithPodMetadata(ctx, b, monitoringv1alpha1.ReasonNotAccepted,
