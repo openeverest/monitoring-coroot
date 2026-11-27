@@ -62,6 +62,9 @@ OpenEverest the build works with.
   [openeverest/provider-percona-server-mongodb#149](https://github.com/openeverest/provider-percona-server-mongodb/pull/149);
   until a provider ships it, bindings stay `EndpointNotServing`.
 - Coroot with `coroot-cluster-agent` (e.g. the `coroot-operator` chart and a `Coroot` CR).
+- On OpenShift, the controller runs under the default `restricted-v2` SCC, but Coroot's
+  node-agent needs the `privileged` SCC: allow the coroot-operator to grant it (see
+  [Coroot on Kubernetes](https://docs.coroot.com/installation/k8s-operator/)).
 
 ## Installation
 
